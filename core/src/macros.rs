@@ -50,5 +50,6 @@ macro_rules! jsonrpc_client {
 #[macro_export]
 macro_rules! expand_params {
     () => ([] as [(); 0]);
+    (params) => (params);
     ($($arg_name:ident,)+) => (($($arg_name,)+))
 }
