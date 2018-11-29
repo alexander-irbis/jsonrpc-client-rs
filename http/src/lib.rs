@@ -355,14 +355,18 @@ fn create_request_processing_future<CC: hyper::client::Connect>(
 
         TimeLimited::new(request, timeout, &handle)
             .and_then(|response: hyper::Response| {
-                if response.status() == hyper::StatusCode::Ok {
-                    future::ok(response)
+                let status = response.status();
+                response.body().concat2().from_err()
+                    .map(move |response_chunk| (status, response_chunk))
+            })
+            .and_then(|(status, response_chunk)| {
+                if status == hyper::StatusCode::Ok {
+                    future::ok(response_chunk.to_vec())
                 } else {
-                    future::err(ErrorKind::HttpError(response.status()).into())
+                    error!("! Body: {}", String::from_utf8_lossy(&response_chunk));
+                    future::err(ErrorKind::HttpError(status).into())
                 }
             })
-            .and_then(|response: hyper::Response| response.body().concat2().from_err())
-            .map(|response_chunk| response_chunk.to_vec())
             .then(move |response_result| {
                 if let Err(_) = response_tx.send(response_result) {
                     warn!("Unable to send response back to caller");
